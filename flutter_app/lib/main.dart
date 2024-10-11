@@ -44,9 +44,13 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<void> _requestPermissions() async {
-    final status = await Permission.locationWhenInUse.request();
-    if (status.isGranted) {
-      _getCurrentLocation();
+    final status = await [
+      Permission.locationWhenInUse,
+      Permission.location
+    ].request();
+
+    if (status[Permission.locationWhenInUse]!.isGranted && status[Permission.location]!.isGranted) {
+      _listenToLocationChanges();
       _listenToSensors();
     } else {
       // Handle the case when the permission is not granted
@@ -54,10 +58,16 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-  void _getCurrentLocation() async {
-    Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
-    setState(() {
-      _currentPosition = position;
+  void _listenToLocationChanges() {
+    Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 10,
+      ),
+    ).listen((Position position) {
+      setState(() {
+        _currentPosition = position;
+      });
     });
   }
 
