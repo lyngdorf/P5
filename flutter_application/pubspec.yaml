@@ -14,11 +14,12 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
+  geolocator: ^9.0.2
+  sensors: ^2.0.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-
   flutter_lints: ^4.0.0
 
 flutter:
