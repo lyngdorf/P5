@@ -22,4 +22,4 @@ Imagine a mobile app that monitors the quality of bike lanes in real-time, detec
 
 1. **Clone the repository:**
    ```sh
-   git clone https://github.com/yourusername/bike-lane-guardian.git
+   git clone https://github.com/lyngdorf/P5.git
