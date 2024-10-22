@@ -1,0 +1,5 @@
+bikehero1:
+  hosts:
+    130.225.37.223:
+      ansible_user: ubuntu
+      ansible_ssh_private_key_file: ~/.ssh/bikehero1.rsa
