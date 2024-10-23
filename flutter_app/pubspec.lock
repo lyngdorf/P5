@@ -17,6 +17,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.1"
+  buffer:
+    dependency: transitive
+    description:
+      name: buffer
+      sha256: "389da2ec2c16283c8787e0adaede82b1842102f8c8aae2f49003a766c5c6b3d1"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.2.3"
   characters:
     dependency: transitive
     description:
@@ -65,6 +73,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.1.0"
+  elastic_client:
+    dependency: "direct main"
+    description:
+      name: elastic_client
+      sha256: bf5b2dd3b9b7b6b81449d67d809776fab5b58678f6ad9c2bd1eb4f9e4695fcbd
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.3.15"
+  executor:
+    dependency: transitive
+    description:
+      name: executor
+      sha256: d45335793b7d0e833d424838740a14953c115ec3ca7906a1471c771681501ca3
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.2.4"
   fake_async:
     dependency: transitive
     description:
@@ -161,13 +185,21 @@ packages:
     source: hosted
     version: "0.2.3"
   http:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: http
       sha256: b9c29a161230ee03d3ccf545097fccd9b87a5264228c5d348202e0f0c28f9010
       url: "https://pub.dev"
     source: hosted
     version: "1.2.2"
+  http_client:
+    dependency: transitive
+    description:
+      name: http_client
+      sha256: f62a0ec75b41e75acb228eee759d4a838086449548f1dd78ac0751b551f9a632
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.5.3"
   http_parser:
     dependency: transitive
     description:

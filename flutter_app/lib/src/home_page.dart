@@ -5,6 +5,9 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'dart:async';
+import 'HistoricData.dart';
+import 'export_data.dart';
+import 'dart:developer' as developer;
 
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key, required this.title});
@@ -26,11 +29,23 @@ class _MyHomePageState extends State<MyHomePage> {
   // List to store historic data
   final List<HistoricData> _historicData = [];
   Timer? _throttleTimer;
+  Timer? _minuteTimer; // Timer to send data every minute
 
   @override
   void initState() {
     super.initState();
     _initialPositionFuture = _requestPermissionsAndGetInitialPosition();
+
+    // Set up a timer to send data every minute
+    _minuteTimer = Timer.periodic(const Duration(seconds: 5), (Timer timer) {
+      _sendHistoricData();
+    });
+  }
+
+  @override
+  void dispose() {
+    _minuteTimer?.cancel(); // Cancel the timer when the widget is disposed
+    super.dispose();
   }
 
   Future<void> _requestPermissionsAndGetInitialPosition() async {
@@ -46,7 +61,7 @@ class _MyHomePageState extends State<MyHomePage> {
       _listenToSensors();
     } else {
       // Handle the case when the permission is not granted
-      print('Location permission not granted');
+      developer.log('Location permission not granted');
     }
   }
 
@@ -55,12 +70,12 @@ class _MyHomePageState extends State<MyHomePage> {
       final position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
-      print('Initial position: ${position.latitude}, ${position.longitude}');
+      developer.log('Initial position: ${position.latitude}, ${position.longitude}');
       setState(() {
         _currentPosition = position;
       });
     } catch (e) {
-      print('Error getting initial position: $e');
+      developer.log('Error getting initial position: $e');
     }
   }
 
@@ -71,7 +86,7 @@ class _MyHomePageState extends State<MyHomePage> {
         distanceFilter: 10,
       ),
     ).listen((Position position) {
-      print('New position: ${position.latitude}, ${position.longitude}');
+      developer.log('New position: ${position.latitude}, ${position.longitude}');
       setState(() {
         _currentPosition = position;
         if (_mapController.mapEventStream.isBroadcast) {
@@ -116,6 +131,29 @@ class _MyHomePageState extends State<MyHomePage> {
         gyroscopeEvent: _gyroscopeEvent!,
       );
       _historicData.add(data);
+    }
+  }
+
+    // Method to send all historic data to the server every minute
+  Future<void> _sendHistoricData() async {
+    if (_historicData.isEmpty) {
+      developer.log('No data to send');
+      return;
+    }
+
+    try {
+      final List<HistoricData> dataToSend = List.from(_historicData);
+      for (var data in dataToSend) {
+        await sendDataToServer(data); // Send all data in batch
+      }
+      developer.log('All historic data sent successfully');
+
+      // Optionally clear the list after sending
+      setState(() {
+        _historicData.clear();
+      });
+    } catch (e) {
+      developer.log('Error sending historic data: $e');
     }
   }
 
@@ -232,18 +270,4 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
     );
   }
-}
-
-class HistoricData {
-  final DateTime timestamp;
-  final Position position;
-  final AccelerometerEvent accelerometerEvent;
-  final GyroscopeEvent gyroscopeEvent;
-
-  HistoricData({
-    required this.timestamp,
-    required this.position,
-    required this.accelerometerEvent,
-    required this.gyroscopeEvent,
-  });
 }
