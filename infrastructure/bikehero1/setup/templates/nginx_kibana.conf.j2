@@ -1,0 +1,26 @@
+server {
+    listen 80;
+    server_name {{ kibana_domain }};
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name {{ kibana_domain }};
+
+    ssl_certificate /etc/letsencrypt/live/{{ kibana_domain }}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/{{ kibana_domain }}/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+
+    location / {
+        proxy_pass http://localhost:5601;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_read_timeout 900s;
+    }
+}

@@ -1,0 +1,35 @@
+upstream elasticsearch {
+    server localhost:9200;
+    keepalive 64;
+}
+
+server {
+    listen 80;
+    server_name {{ elastic_domain }};
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name {{ elastic_domain }};
+
+    ssl_certificate /etc/letsencrypt/live/{{ elastic_domain }}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/{{ elastic_domain }}/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+
+    location / {
+        proxy_pass https://localhost:9200;
+        proxy_redirect off;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Host $http_host;
+        proxy_pass_header Access-Control-Allow-Origin;
+        proxy_pass_header Access-Control-Allow-Methods;
+        proxy_hide_header Access-Control-Allow-Headers;
+        add_header Access-Control-Allow-Headers 'X-Requested-With, Content-Type';
+        add_header Access-Control-Allow-Credentials true;
+    }
+}

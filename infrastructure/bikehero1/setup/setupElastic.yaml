@@ -1,0 +1,224 @@
+---
+- name: Install and Configure Elasticsearch, Kibana, and nginx with SSL Termination
+  hosts: bikehero1
+  become: yes
+  vars_files:
+    - /mnt/c/git/CCT5/P5/infrastructure/vault.yml  # Contains sensitive variables like passwords and API tokens
+  vars:
+    elastic_version: "8.15.3"
+    elastic_domain: "elastic.mcmogens.dk"
+    kibana_domain: "kibana.mcmogens.dk"
+    elastic_data_dir: "/data/elasticsearch"
+    kibana_data_dir: "/data/kibana"
+    cloudflare_credentials_file: "/etc/letsencrypt/cloudflare.ini"
+    nginx_config_dir: "/etc/nginx/sites-available"
+    nginx_sites_enabled_dir: "/etc/nginx/sites-enabled"
+    nginx_kibana_conf: "nginx_kibana.conf.j2"
+    nginx_elastic_conf: "nginx_elastic.conf.j2"
+    certbot_email: "dani788c@gmail.com"
+    elastic_log_file: "/var/log/elasticsearch/elasticsearch.log"
+  tasks:
+    # Check if vault is unlocked and cloudflare_api_token is defined
+    - name: Check if vault is unlocked and cloudflare_api_token is defined
+      assert:
+        that:
+          - cloudflare_api_token is defined
+        fail_msg: "The cloudflare_api_token is not defined. Please ensure the vault is unlocked and contains the required variable."
+
+    # Ensure /data directory exists
+    - name: Ensure /data directory exists
+      file:
+        path: /data
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    # Install dependencies
+    - name: Install dependencies
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+          - gnupg
+          - nginx
+          - certbot
+          - python3-certbot-dns-cloudflare
+        state: present
+        update_cache: yes
+
+    # Create Cloudflare credentials file
+    - name: Create Cloudflare credentials file
+      copy:
+        dest: "{{ cloudflare_credentials_file }}"
+        content: |
+          dns_cloudflare_api_token = {{ cloudflare_api_token }}
+        owner: root
+        group: root
+        mode: "0600"
+
+    # Import Elasticsearch GPG key
+    - name: Add Elasticsearch GPG key
+      apt_key:
+        url: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+        state: present
+
+    # Add Elasticsearch repository
+    - name: Add Elasticsearch repository
+      apt_repository:
+        repo: 'deb https://artifacts.elastic.co/packages/8.x/apt stable main'
+        state: present
+
+    # Install Elasticsearch
+    - name: Install Elasticsearch {{ elastic_version }}
+      apt:
+        name: "elasticsearch={{ elastic_version }}"
+        state: present
+        update_cache: yes
+    
+    # Install Kibana
+    - name: Install Kibana {{ elastic_version }}
+      apt:
+        name: "kibana={{ elastic_version }}"
+        state: present
+        update_cache: yes
+
+    # Create Elasticsearch data directory
+    - name: Create Elasticsearch data directory
+      file:
+        path: "{{ elastic_data_dir }}"
+        state: directory
+        owner: elasticsearch
+        group: elasticsearch
+        mode: "0750"
+
+    # Ensure Elasticsearch is enabled and started
+    - name: Ensure Elasticsearch is enabled and started
+      service:
+        name: elasticsearch
+        state: started
+        enabled: yes
+
+    # Reset elastic user password to a specific password from the vault
+    - name: Reset elastic user password
+      shell: |
+        echo "{{ elastic_password }}" | /usr/share/elasticsearch/bin/elasticsearch-reset-password --username elastic --batch
+      args:
+        stdin: "{{ elastic_password }}"
+      become: yes
+      environment:
+        ES_PATH_CONF: /etc/elasticsearch
+      when: elastic_password is defined
+
+    # Generate Kibana enrollment token
+    - name: Generate Kibana enrollment token
+      command: "/usr/share/elasticsearch/bin/elasticsearch-create-enrollment-token -s kibana"
+      register: kibana_enrollment_token_result
+      become: yes
+
+    - name: Set Kibana enrollment token
+      set_fact:
+        kibana_enrollment_token: "{{ kibana_enrollment_token_result.stdout }}"
+
+    # Configure Kibana with enrollment token
+    - name: Configure Kibana with enrollment token
+      shell: "/usr/share/kibana/bin/kibana-setup --enrollment-token {{ kibana_enrollment_token }}"
+      become: yes
+
+    # Ensure Kibana is enabled and started
+    - name: Ensure Kibana is enabled and started
+      service:
+        name: kibana
+        state: started
+        enabled: yes
+
+    # Copy nginx configuration for Kibana
+    - name: Copy nginx configuration for Kibana
+      template:
+        src: "templates/{{ nginx_kibana_conf }}"
+        dest: "{{ nginx_config_dir }}/kibana.conf"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: reload nginx
+
+    # Copy nginx configuration for Elasticsearch
+    - name: Copy nginx configuration for Elasticsearch
+      template:
+        src: "templates/{{ nginx_elastic_conf }}"
+        dest: "{{ nginx_config_dir }}/elastic.conf"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: reload nginx
+
+    # Enable nginx configurations
+    - name: Enable nginx configuration for Kibana
+      file:
+        src: "{{ nginx_config_dir }}/kibana.conf"
+        dest: "{{ nginx_sites_enabled_dir }}/kibana.conf"
+        state: link
+
+    - name: Enable nginx configuration for Elasticsearch
+      file:
+        src: "{{ nginx_config_dir }}/elastic.conf"
+        dest: "{{ nginx_sites_enabled_dir }}/elastic.conf"
+        state: link
+
+    # Remove default nginx site
+    - name: Remove default nginx site
+      file:
+        path: "{{ nginx_sites_enabled_dir }}/default"
+        state: absent
+
+    # Ensure nginx is running
+    - name: Ensure nginx is running
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+
+    # Obtain SSL certificate for Kibana domain using Cloudflare DNS plugin
+    - name: Obtain SSL certificate for Kibana domain
+      command: >
+        certbot certonly
+        --dns-cloudflare
+        --dns-cloudflare-credentials {{ cloudflare_credentials_file }}
+        -d {{ kibana_domain }}
+        --email {{ certbot_email }}
+        --non-interactive
+        --agree-tos
+        --keep-until-expiring
+      args:
+        creates: "/etc/letsencrypt/live/{{ kibana_domain }}/fullchain.pem"
+      notify: reload nginx
+
+    # Obtain SSL certificate for Elasticsearch domain using Cloudflare DNS plugin
+    - name: Obtain SSL certificate for Elasticsearch domain
+      command: >
+        certbot certonly
+        --dns-cloudflare
+        --dns-cloudflare-credentials {{ cloudflare_credentials_file }}
+        -d {{ elastic_domain }}
+        --email {{ certbot_email }}
+        --non-interactive
+        --agree-tos
+        --keep-until-expiring
+      args:
+        creates: "/etc/letsencrypt/live/{{ elastic_domain }}/fullchain.pem"
+      notify: reload nginx
+
+    # Ensure nginx is running
+    - name: Ensure nginx is running
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+
+  handlers:
+    - name: reload nginx
+      service:
+        name: nginx
+        state: reloaded
