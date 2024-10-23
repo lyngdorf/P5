@@ -3,7 +3,7 @@
   hosts: bikehero1
   become: yes
   vars_files:
-    - /mnt/c/git/CCT5/P5/infrastructure/vault.yml  # Contains sensitive variables like passwords and API tokens
+    - /mnt/c/git/CCT5/P5/infrastructure/vault.yml # Contains sensitive variables like passwords and API tokens
   vars:
     elastic_version: "8.15.3"
     elastic_domain: "elastic.mcmogens.dk"
@@ -68,7 +68,7 @@
     # Add Elasticsearch repository
     - name: Add Elasticsearch repository
       apt_repository:
-        repo: 'deb https://artifacts.elastic.co/packages/8.x/apt stable main'
+        repo: "deb https://artifacts.elastic.co/packages/8.x/apt stable main"
         state: present
 
     # Install Elasticsearch
@@ -77,7 +77,7 @@
         name: "elasticsearch={{ elastic_version }}"
         state: present
         update_cache: yes
-    
+
     # Install Kibana
     - name: Install Kibana {{ elastic_version }}
       apt:
@@ -93,6 +93,15 @@
         owner: elasticsearch
         group: elasticsearch
         mode: "0750"
+
+    - name: set elasticsearch.yml
+      template:
+        src: "templates/elasticsearch.yml.j2"
+        dest: "/etc/elasticsearch/elasticsearch.yml"
+        owner: elasticsearch
+        group: elasticsearch
+        mode: "0640"
+      notify: restart elasticsearch
 
     # Ensure Elasticsearch is enabled and started
     - name: Ensure Elasticsearch is enabled and started
@@ -218,6 +227,16 @@
         enabled: yes
 
   handlers:
+    - name: restart elasticsearch
+      service:
+        name: elasticsearch
+        state: restarted
+
+    - name: restart kibana
+      service:
+        name: kibana
+        state: restarted
+
     - name: reload nginx
       service:
         name: nginx
