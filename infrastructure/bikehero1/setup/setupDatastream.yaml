@@ -1,0 +1,61 @@
+---
+- name: Setup Elasticsearch Data Stream for BikeHero
+  hosts: bikehero1
+  become: yes
+  gather_facts: no
+  vars_files:
+    - vault.yml  # Ensure the vault file is being loaded
+  vars:
+    elasticsearch_host: "https://130.225.37.223:9200"
+
+  tasks:
+    - name: Create index template for data stream
+      uri:
+        url: "{{ elasticsearch_host }}/_index_template/bikehero_template"
+        method: PUT
+        headers:
+          Content-Type: "application/json"
+          Authorization: "ApiKey {{ elasticsearch_api_key }}"  # Using the vault-loaded API key
+        body_format: json
+        body:
+          index_patterns: ["bikehero-data-stream*"]
+          data_stream: {}
+          template:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                "@timestamp":
+                  type: "date"
+                location:
+                  type: "geo_point"
+                vibration:
+                  properties:
+                    x: { type: "float" }
+                    y: { type: "float" }
+                    z: { type: "float" }
+                user_id:
+                  type: "keyword"
+                device_id:
+                  type: "keyword"
+        use_ssl: yes
+        validate_certs: no
+      register: create_template_response
+
+    - debug:
+        var: create_template_response
+
+    - name: Create data stream
+      uri:
+        url: "{{ elasticsearch_host }}/_data_stream/bikehero-data-stream"
+        method: PUT
+        headers:
+          Content-Type: "application/json"
+          Authorization: "ApiKey {{ elasticsearch_api_key }}"  # Using the vault-loaded API key
+        use_ssl: yes
+        validate_certs: no
+      register: create_datastream_response
+
+    - debug:
+        var: create_datastream_response

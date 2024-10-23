@@ -1,0 +1,41 @@
+---
+- name: Setup Ansible Dependencies on Ubuntu Hosts
+  hosts: all
+  become: yes
+  gather_facts: no
+  tasks:
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: yes
+
+    - name: Install required packages
+      ansible.builtin.apt:
+        name:
+          - python3
+          - python3-pip
+          - python3-venv
+          - software-properties-common
+        state: present
+
+    - name: Create a virtual environment
+      ansible.builtin.command:
+        cmd: python3 -m venv /home/ubuntu/ansible_venv
+        creates: /home/ubuntu/ansible_venv
+
+    - name: Ensure pip is up to date in the virtual environment
+      ansible.builtin.command:
+        cmd: /home/ubuntu/ansible_venv/bin/pip install --upgrade pip
+
+    - name: Install Ansible in the virtual environment
+      ansible.builtin.command:
+        cmd: /home/ubuntu/ansible_venv/bin/pip install ansible
+        creates: /home/ubuntu/ansible_venv/bin/ansible
+
+    - name: Install community.general collection in the virtual environment
+      ansible.builtin.command:
+        cmd: /home/ubuntu/ansible_venv/bin/ansible-galaxy collection install community.general
+        creates: /home/ubuntu/ansible_venv/.ansible/collections/ansible_collections/community/general
+
+    - name: Verify Ansible installation in the virtual environment
+      ansible.builtin.command:
+        cmd: /home/ubuntu/ansible_venv/bin/ansible --version

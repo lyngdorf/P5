@@ -1,0 +1,119 @@
+---
+- name: Configure NGINX and Reload it
+  hosts: bikehero1
+  become: yes
+  vars_files:
+    - /mnt/c/git/CCT5/P5/infrastructure/vault.yml  # Contains sensitive variables like passwords and API tokens
+  vars:
+    kibana_domain: "kibana.mcmogens.dk"
+    elastic_domain: "elastic.mcmogens.dk"
+    cloudflare_credentials_file: "/etc/letsencrypt/cloudflare.ini"
+    nginx_config_dir: "/etc/nginx/sites-available"
+    nginx_sites_enabled_dir: "/etc/nginx/sites-enabled"
+    nginx_kibana_conf: "nginx_kibana.conf.j2"
+    nginx_elastic_conf: "nginx_elastic.conf.j2"
+    certbot_email: "dani788c@gmail.com"
+
+  tasks:
+    # Install nginx and certbot dependencies
+    - name: Install nginx and certbot dependencies
+      apt:
+        name:
+          - nginx
+          - certbot
+          - python3-certbot-dns-cloudflare
+        state: present
+        update_cache: yes
+
+    # Create Cloudflare credentials file
+    - name: Create Cloudflare credentials file
+      copy:
+        dest: "{{ cloudflare_credentials_file }}"
+        content: |
+          dns_cloudflare_api_token = {{ cloudflare_api_token }}
+        owner: root
+        group: root
+        mode: "0600"
+
+    # Copy nginx configuration for Kibana
+    - name: Copy nginx configuration for Kibana
+      template:
+        src: "templates/{{ nginx_kibana_conf }}"
+        dest: "{{ nginx_config_dir }}/kibana.conf"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: reload nginx
+
+    # Copy nginx configuration for Elasticsearch
+    - name: Copy nginx configuration for Elasticsearch
+      template:
+        src: "templates/{{ nginx_elastic_conf }}"
+        dest: "{{ nginx_config_dir }}/elastic.conf"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: reload nginx
+
+    # Enable nginx configuration for Kibana
+    - name: Enable nginx configuration for Kibana
+      file:
+        src: "{{ nginx_config_dir }}/kibana.conf"
+        dest: "{{ nginx_sites_enabled_dir }}/kibana.conf"
+        state: link
+
+    # Enable nginx configuration for Elasticsearch
+    - name: Enable nginx configuration for Elasticsearch
+      file:
+        src: "{{ nginx_config_dir }}/elastic.conf"
+        dest: "{{ nginx_sites_enabled_dir }}/elastic.conf"
+        state: link
+
+    # Remove default nginx site
+    - name: Remove default nginx site
+      file:
+        path: "{{ nginx_sites_enabled_dir }}/default"
+        state: absent
+
+    # Obtain SSL certificate for Kibana domain using Cloudflare DNS plugin
+    - name: Obtain SSL certificate for Kibana domain
+      command: >
+        certbot certonly
+        --dns-cloudflare
+        --dns-cloudflare-credentials {{ cloudflare_credentials_file }}
+        -d {{ kibana_domain }}
+        --email {{ certbot_email }}
+        --non-interactive
+        --agree-tos
+        --keep-until-expiring
+      args:
+        creates: "/etc/letsencrypt/live/{{ kibana_domain }}/fullchain.pem"
+      notify: reload nginx
+
+    # Obtain SSL certificate for Elasticsearch domain using Cloudflare DNS plugin
+    - name: Obtain SSL certificate for Elasticsearch domain
+      command: >
+        certbot certonly
+        --dns-cloudflare
+        --dns-cloudflare-credentials {{ cloudflare_credentials_file }}
+        -d {{ elastic_domain }}
+        --email {{ certbot_email }}
+        --non-interactive
+        --agree-tos
+        --keep-until-expiring
+      args:
+        creates: "/etc/letsencrypt/live/{{ elastic_domain }}/fullchain.pem"
+      notify: reload nginx
+
+    # Ensure nginx is running
+    - name: Ensure nginx is running
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+
+  handlers:
+    - name: reload nginx
+      service:
+        name: nginx
+        state: reloaded
