@@ -38,6 +38,7 @@ dependencies:
   flutter_map: ^7.0.2
   http: ^1.2.1
   elastic_client: ^0.3.15
+  connectivity_plus: ^5.0.0
   
 dev_dependencies:
   flutter_test:

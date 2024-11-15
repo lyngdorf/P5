@@ -8,6 +8,7 @@ import 'dart:async';
 import 'HistoricData.dart';
 import 'export_data.dart';
 import 'dart:developer' as developer;
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key, required this.title});
@@ -38,7 +39,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
     // Set up a timer to send data every minute
     _minuteTimer = Timer.periodic(const Duration(seconds: 5), (Timer timer) {
-      _sendHistoricData();
+      _checkIfConnected();
     });
   }
 
@@ -76,6 +77,16 @@ class _MyHomePageState extends State<MyHomePage> {
       });
     } catch (e) {
       developer.log('Error getting initial position: $e');
+    }
+  }
+
+  Future<void> _checkIfConnected() async {
+    var connectivityResult = await (Connectivity().checkConnectivity());
+    if(connectivityResult == ConnectivityResult.wifi) {
+      developer.log('Connected, sending data...');
+      _sendHistoricData();
+    } else {
+      developer.log('Not connected to wifi, trying again later...');
     }
   }
 
@@ -136,6 +147,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
     // Method to send all historic data to the server every minute
   Future<void> _sendHistoricData() async {
+    developer.log('Gonna start sending data');
     if (_historicData.isEmpty) {
       developer.log('No data to send');
       return;
